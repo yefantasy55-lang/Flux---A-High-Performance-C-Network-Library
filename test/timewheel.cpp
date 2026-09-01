@@ -78,7 +78,7 @@ public:
     void TimerAdd(uint64_t id, uint32_t timeout, const TaskFun &task_cb)
     {
         PtrTask pt = std::make_shared<TimerTask>(id, timeout, task_cb);
-        pt->SetRelease(std::bind(&TimerWheel::TimerRefresh, this, id));
+        pt->SetRelease(std::bind(&TimerWheel::RemoveTimer, this, id));
         int pos = (_tick + timeout) % _capacity;
         _wheel[pos].push_back(pt);
         _timers[id] = WeakTask(pt);
@@ -89,6 +89,11 @@ public:
         if (!IsExistTimer(id))
             return;
         PtrTask pt = _timers[id].lock();
+        if (!pt)
+        {
+            _timers.erase(id);
+            return;
+        }
         int pos = (_tick + pt->DelayTime()) % _capacity;
         _wheel[pos].push_back(pt);
     }
@@ -97,7 +102,9 @@ public:
     {
         if (!IsExistTimer(id))
             return;
-        _timers[id].lock()->Cancel();
+        auto pt = _timers[id].lock();
+        if (pt)
+            pt->Cancel();
     }
 
     void RunTimerTask()
