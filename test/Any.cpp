@@ -7,7 +7,7 @@ class Any
         class holer
         {
             public:
-                
+
 
         };
 
@@ -42,6 +42,6 @@ int main()
     std::string *ps = a.get<std::string>();
     std::cout << *ps << std::endl;
     */
-    while(1) sleep(1);
+    // while(1) sleep(1);
     return 0;
 }

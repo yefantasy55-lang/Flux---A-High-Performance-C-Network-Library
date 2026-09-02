@@ -4,6 +4,7 @@
 #include <string>
 #include <cassert>
 #include <memory.h>
+#include "Log.hpp"
 
 #define BUFFER_DEFAULT_SIZE 1024
 
@@ -82,6 +83,7 @@ public:
         }
         else // 扩容
         {
+            LOG(LOGLEVEL::DEBUG, "RESIZE %ld", _writer_idx + len);
             _buffer.resize(_writer_idx + len);
         }
     }
