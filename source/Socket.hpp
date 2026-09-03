@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <string>
 #include <unistd.h>
+#include <cerrno>
 #include "Log.hpp"
 
 #define MAX_LISTEN 1024
