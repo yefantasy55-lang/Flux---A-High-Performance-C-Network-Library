@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <typeinfo>
 #include <algorithm> // for std::swap
