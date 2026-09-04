@@ -97,7 +97,7 @@ public:
     }
 
     // 监控Channel,返回活跃连接
-    void Poll(std::vector<Channel *> &active, int timeout = -1)
+    void Poll(std::vector<Channel *> &actives, int timeout = -1)
     {
         int nfds = epoll_wait(_epfd, _evs, MAX_EPOLLEVENTS, timeout);
         if (nfds < 0)
@@ -119,7 +119,7 @@ public:
             if (it != _channels.end())
             {
                 it->second->SetREvents(events);
-                active.push_back(it->second);
+                actives.push_back(it->second);
             }
             else
             {
