@@ -79,6 +79,12 @@ public:
         Update();
     }
 
+    void EnableWrite()
+    {
+        _events |= EPOLLOUT;
+        Update();
+    }
+
     void DisableRead()
     {
         _events &= ~(EPOLLIN | EPOLLRDHUP | EPOLLPRI);
