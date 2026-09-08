@@ -33,14 +33,9 @@ class Connection : public std::enable_shared_from_this<Connection>
     {
         char buffer[buffer_size];
         ssize_t n = _socket.NonBlockRecv(buffer, buffer_size - 1);
-        if (n < 0)
+        if (n <= 0)
         {
             ShutdownInLoop();
-            return;
-        }
-        if (n == 0)
-        {                     // 对端关闭
-            ShutdownInLoop(); // 或 Release()
             return;
         }
         _in_buffer.WriteAndPush(buffer, n); // 写入用户自己的输入缓冲区
