@@ -38,6 +38,11 @@ class Connection : public std::enable_shared_from_this<Connection>
             ShutdownInLoop();
             return;
         }
+        if (n == 0)
+        {                     // 对端关闭
+            ShutdownInLoop(); // 或 Release()
+            return;
+        }
         _in_buffer.WriteAndPush(buffer, n); // 写入用户自己的输入缓冲区
         if (_in_buffer.ReadAbleSize() > 0)
         {
@@ -52,6 +57,10 @@ class Connection : public std::enable_shared_from_this<Connection>
         ssize_t n = _socket.NonBlockSend(_out_buffer.ReaderPosition(), _out_buffer.ReadAbleSize());
         if (n < 0)
         {
+            if (errno == EAGAIN || errno == EWOULDBLOCK)
+            {
+                return;
+            }
             // 因为如果小于0了，就说明套接字出现了严重问题，数据已经不可能发出去了，但是已经收到的数据还是
             // 要接收处理完毕
             if (_in_buffer.ReadAbleSize() > 0) // 输入缓冲区还有数据
@@ -113,19 +122,10 @@ class Connection : public std::enable_shared_from_this<Connection>
             _connected_callback(shared_from_this());
     }
 
-    void CancelInactiveReleaseInLoop() // 关闭定时任务
-    {
-        _enable_inactive_release = false;
-        if (_loop->HasTimer(_conn_id))
-        {
-            _loop->TimerCancel(_conn_id);
-        }
-    }
-
     // 这个接口才是实际的释放接口
     void ReleaseInLoop()
     {
-        _statu == DISCONNECTED;
+        _statu = DISCONNECTED;
         _channel.Remove();
         _socket.Close();
         if (_loop->HasTimer(_conn_id)) // 有定时任务的话取消
@@ -142,7 +142,7 @@ class Connection : public std::enable_shared_from_this<Connection>
         }
     }
 
-    void SendInLoop(Buffer &buf)
+    void SendInLoop(Buffer buf)
     {
         if (_statu == DISCONNECTED)
             return;
@@ -182,7 +182,7 @@ class Connection : public std::enable_shared_from_this<Connection>
             _loop->TimerRefresh(_conn_id);
             return;
         }
-        _loop->TimerAdd(_conn_id, sec, std::bind(&Connection::Release, this)); // 没有就添加
+        _loop->TimerAdd(_conn_id, sec, std::bind(&Connection::Release, shared_from_this())); // 没有就添加
     }
 
     void CancelInactiveReleaseInLoop()
@@ -209,81 +209,108 @@ class Connection : public std::enable_shared_from_this<Connection>
 
 public:
     Connection(EventLoop *loop, uint64_t conn_id, int sockfd)
-        : _conn_id(conn_id), _sockfd(sockfd), _enable_inactive_release(false), _loop(loop), _statu(CONNECTING), _socket(sockfd), _channel(_loop, _sockfd)
+        : _conn_id(conn_id), _sockfd(sockfd), _enable_inactive_release(false), _loop(loop),
+          _statu(CONNECTING), _socket(sockfd), _channel(_loop, _sockfd)
     {
+        _channel.SetCloseCallback(std::bind(&HandleClose, this));
+        _channel.SetErrorCallback(std::bind(&HandleError, this));
+        _channel.SetEventCallback(std::bind(&HandleAnyEvent, this));
+        _channel.SetReadCallback(std::bind(&HandleRead, this));
+        _channel.SetWriteCallback(std::bind(&HandleWrite, this));
     }
 
     ~Connection()
     {
+        LOG(LOGLEVEL::DEBUG, "RELEASE CONNECTION:%p", this);
     }
 
     int Fd()
     {
+        return _sockfd;
     }
 
-    int Id()
+    uint64_t Id()
     {
+        return _conn_id;
     }
 
     bool Connected()
     {
+        return _statu == CONNECTED;
     }
 
     void SetContext(const Any &context)
     {
+        _context = context;
     }
 
     Any *GetContext()
     {
+        return &_context;
     }
 
-    void SetConnectedCallBack()
+    void SetConnectedCallBack(const ConnectedCallBack &cb)
     {
+        _connected_callback = cb;
     }
 
-    void SetMessageCallBack()
+    void SetMessageCallBack(const MessageCallBack &cb)
     {
+        _message_callback = cb;
     }
 
-    void SetClosedCallBack()
+    void SetClosedCallBack(const ClosedCallBack &cb)
     {
-    }
-
-    void SetAnyEventCallBack()
-    {
+        _closed_callback = cb;
     }
 
     void SetAnyEventCallBack(const AnyEventCallBack &cb)
     {
+        _anyevent_callback = cb;
+    }
+
+    void SetSrvClosedCallBack(const ClosedCallBack &cb)
+    {
+        _server_closed_callback = cb;
     }
 
     void Established()
     {
+        _loop->RunInLoop(std::bind(&EstablishedInLoop, shared_from_this()));
     }
 
     void Send(const char *data, size_t len)
     {
+        Buffer buf; // 为了防止Send回去后data已经释放，所以需临时拷贝一份
+        buf.WriteAndPush(data, len);
+        _loop->RunInLoop(std::bind(&SendInLoop, shared_from_this(), std::move(buf)));
     }
 
     void Shutdown()
     {
+        _loop->RunInLoop(std::bind(&ShutdownInLoop, shared_from_this()));
     }
 
     void Release()
     {
+        _loop->RunInLoop(std::bind(&ReleaseInLoop, shared_from_this()));
     }
 
     void EnableInactiveRelease(int sec)
     {
+        _loop->RunInLoop(std::bind(&EnableInactiveReleaseInLoop, shared_from_this(), sec));
     }
 
     void CancelInactiveRelease()
     {
+        _loop->RunInLoop(std::bind(&CancelInactiveReleaseInLoop, shared_from_this()));
     }
 
     void Upgrade(const Any &context, const ConnectedCallBack &conn, const MessageCallBack &msg,
                  const ClosedCallBack &closed, const AnyEventCallBack &event)
     {
+        _loop->AssertInLoop();
+        _loop->RunInLoop(std::bind(&UpgradeInLoop, shared_from_this(), context, conn, msg, closed, event));
     }
 
 private:
