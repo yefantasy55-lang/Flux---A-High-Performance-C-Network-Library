@@ -166,7 +166,7 @@ public:
         }
     }
 
-    bool CreateServer(const std::string &ip = "0.0.0.0", uint16_t port = 8080, bool block_flag = false)
+    bool CreateServer(uint16_t port, const std::string &ip = "0.0.0.0", bool block_flag = false)
     {
         if (!Create(SOCKET_TCP))
             return false;
