@@ -30,6 +30,7 @@ public:
         }
     }
 
+    // 轮询获取Loop处理
     EventLoop *NextLoop()
     {
         if (_thread_count == 0)
