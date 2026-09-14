@@ -382,3 +382,199 @@ public:
         return true;
     }
 };
+
+class HttpRequest
+{
+public:
+    HttpRequest()
+        : _version("HTTP/1.1")
+    {
+    }
+
+    // 重置所有信息
+    void Reset()
+    {
+        _method.clear();
+        _path.clear();
+        _version = "HTTP/1.1"; // 默认1.1版本
+        _body.clear();
+        std::smatch match; // 与新对象交换空间达到清空的效果
+        _matches.swap(match);
+        _headers.clear();
+        _params.clear();
+    }
+
+    // 设置请求头字段
+    void SetHeader(const std::string &key, const std::string &value)
+    {
+        _headers.insert(std::make_pair(key, value));
+    }
+
+    // 判断是否存在某个请求头字段
+    bool HasHeader(const std::string &key) const
+    {
+        auto it = _headers.find(key);
+        if (it != _headers.end())
+        {
+            return true;
+        }
+        return false;
+    }
+
+    // 获取某个请求头字段
+    std::string GetHeader(const std::string &key) const
+    {
+        auto it = _headers.find(key);
+        if (it == _headers.end())
+        {
+            return "";
+        }
+        return it->second;
+    }
+
+    // 插入查询字符串
+    void SetParam(const std::string &key, const std::string &value)
+    {
+        _params.insert(std::make_pair(key, value));
+    }
+
+    // 判断是否有某个指定的查询字符串
+    bool HasParam(const std::string &key) const
+    {
+        auto it = _params.find(key);
+        if (it != _params.end())
+        {
+            return true;
+        }
+        return false;
+    }
+
+    // 获取指定的查询字符串
+    std::string GetParam(const std::string &key) const
+    {
+        auto it = _params.find(key);
+        if (it == _params.end())
+        {
+            return "";
+        }
+        return it->second;
+    }
+
+    // 获取正文长度
+    size_t ContentLength() const
+    {
+        bool res = HasHeader("Content-Length");
+        if (res == false)
+        {
+            return 0;
+        }
+        std::string len = GetHeader("Content-Length");
+        return std::stol(len);
+    }
+
+    // 判断是否是短链接
+    bool IsShortConnection() const
+    {
+        // 长连接的判定标准
+        if (HasHeader("Connection") && GetHeader("Connection") == "keep-alive")
+        {
+            return false;
+        }
+        return true;
+    }
+
+public:
+    std::string _method;                                   // 请求方法
+    std::string _path;                                     // 请求路径
+    std::string _version;                                  // 协议版本
+    std::string _body;                                     // 请求体
+    std::smatch _matches;                                  // 资源路径的正则
+    std::unordered_map<std::string, std::string> _headers; // 请求头
+    std::unordered_map<std::string, std::string> _params;  // 查询字符串(即uri?后的参数)
+};
+
+class HttpResponse
+{
+public:
+    HttpResponse()
+        : _status(200), _redirect_flag(false)
+    {
+    }
+
+    HttpResponse(int status)
+        : _status(status), _redirect_flag(false)
+    {
+    }
+
+    void Reset()
+    {
+        _status = 200;
+        _redirect_flag = false;
+        _body.clear();
+        _redirect_url.clear();
+        _headers.clear();
+    }
+
+    void SetHeader(const std::string &key, const std::string &value)
+    {
+        _headers.insert(std::make_pair(key, value));
+    }
+
+    bool HasHeader(const std::string &key) const
+    {
+        auto it = _headers.find(key);
+        if (it != _headers.end())
+        {
+            return true;
+        }
+        return false;
+    }
+
+    std::string GetHeader(const std::string &key) const
+    {
+        auto it = _headers.find(key);
+        if (it == _headers.end())
+        {
+            return "";
+        }
+        return it->second;
+    }
+
+    void SetContent(const std::string &body, const std::string &type = "text/html")
+    {
+        _body = body;
+        SetHeader("Content-Type", type);
+    }
+
+    // 开启重定向
+    void EnableRedirect()
+    {
+        _redirect_flag = true;
+    }
+
+    // 设置重定向(默认临时重定向，永久重定向为301)
+    void SetRedirect(const std::string &url, int status = 302)
+    {
+        if (_redirect_flag == false)
+            return;
+        _status = status;
+        _redirect_url = url;
+    }
+
+    bool IsShortConnection() const
+    {
+        // 长连接的判定标准
+        if (HasHeader("Connection") && GetHeader("Connection") == "keep-alive")
+        {
+            return false;
+        }
+        return true;
+    }
+
+public:
+    int _status;                                           // 状态码
+    bool _redirect_flag;                                   // 是否重定向，默认false
+    std::string _body;                                     // 响应体
+    std::string _redirect_url;                             // 重定向的url
+    std::unordered_map<std::string, std::string> _headers; // 响应头
+};
