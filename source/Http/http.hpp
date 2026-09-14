@@ -331,4 +331,54 @@ public:
         }
         return it->second;
     }
+
+    // 判断一个文件是否是一个目录操作
+    static bool IsDirectory(const std::string &filename)
+    {
+        struct stat st;
+        int n = stat(filename.c_str(), &st);
+        if (n < 0)
+        {
+            LOG(LOGLEVEL::WARNING, "Error in determining file:%s type!!!", filename.c_str());
+            return false;
+        }
+        return S_ISDIR(st.st_mode);
+    }
+
+    // 判断一个文件是否是一个普通文件操作
+    static bool IsRegular(const std::string &filename)
+    {
+        struct stat st;
+        int n = stat(filename.c_str(), &st);
+        if (n < 0)
+        {
+            LOG(LOGLEVEL::WARNING, "Error in determining file:%s type!!!", filename.c_str());
+            return false;
+        }
+        return S_ISREG(st.st_mode);
+    }
+
+    // 判断资源请求路径是否合法
+    static bool ValidPath(const std::string &path)
+    {
+        // 按照'/'分割，如果越级过根目录则非法
+        std::vector<std::string> subdir;
+        Split(path, "/", &subdir);
+
+        int level = 0;
+        for (auto &dir : subdir)
+        {
+            if (dir == "..")
+            {
+                level--;
+                if (level < 0)
+                    return false;
+            }
+            else
+            {
+                level++;
+            }
+        }
+        return true;
+    }
 };
