@@ -654,10 +654,9 @@ class HttpContext
     {
         if (_recv_status != RECV_HTTP_LINE)
         {
-
             return ParseState::ERROR;
         }
-        std::string line = buf->GetLineAndPop(); // 获取一行数据,不如一行数据返回空串
+        std::string line = buf->GetLineAndPop(); // 获取一行数据,不够一行数据返回空串
         if (line.size() == 0)
         {
             if (buf->ReadAbleSize() > MAX_LINE) // 没有换行符导致一直读
@@ -673,18 +672,79 @@ class HttpContext
         {
             _resp_status = 414;
             _recv_status = RECV_HTTP_ERROR;
-            LOG(LOGLEVEL::WARNING, "Current HttpLine Too Long!!!");
+            LOG(LOGLEVEL::WARNING, "HttpLine Too Long!!!");
             return ParseState::ERROR;
         }
         if (!ParseHttpLine(line)) // 解析失败
             return ParseState::ERROR;
-        _recv_status = RECV_HTTP_HEAD; // 准备进入请求头解析状态
+        _recv_status = RECV_HTTP_HEAD; // 准备进入请求头处理状态
         return ParseState::SUCCESS;
     }
 
-    // 接收请求头
-
     // 解析请求头
+    bool ParseHttpHead(std::string &line)
+    {
+        // 去掉换行符
+        if (line.back() == '\n')
+            line.pop_back();
+        if (line.back() == '\r')
+            line.pop_back();
+        std::string symbol = ": "; // 请求头的键值对为key: value
+        auto pos = line.find(symbol);
+        if (pos == std::string::npos)
+        {
+            _resp_status = 400;
+            _recv_status = RECV_HTTP_ERROR;
+            LOG(LOGLEVEL::ERR, "Parse HttpHead Failed!!!");
+            return false;
+        }
+        std::string key = line.substr(0, pos);
+        std::string val = line.substr(pos + symbol.size());
+        _request.SetHeader(key, val);
+        return true;
+    }
+
+    // 接收请求头
+    ParseState RecvHttpHead(Buffer *buf)
+    {
+        if (_recv_status != RECV_HTTP_HEAD)
+        {
+            return ParseState::ERROR;
+        }
+
+        // 循环读取，直到读到空行
+        while (true)
+        {
+            std::string line = buf->GetLineAndPop(); // 获取一行数据,不够一行数据返回空串
+            if (line.size() == 0)
+            {
+                if (buf->ReadAbleSize() > MAX_LINE) // 没有换行符导致一直读
+                {
+                    _resp_status = 414;
+                    _recv_status = RECV_HTTP_ERROR;
+                    return ParseState::ERROR;
+                }
+                return ParseState::NEED_MORE; // 数据不够，继续外部调用读取
+            }
+            // 到这里一定读到了一行数据
+            if (line.size() > MAX_LINE)
+            {
+                _resp_status = 414;
+                _recv_status = RECV_HTTP_ERROR;
+                LOG(LOGLEVEL::WARNING, "HttpLine Too Long!!!");
+                return ParseState::ERROR;
+            }
+            if (line == "\r\n" || line == "\n") // 读取到了空行
+            {
+                LOG(LOGLEVEL::INFO, "Parse HttpHead Finish!!!");
+                break;
+            }
+            if (!ParseHttpHead(line)) // 解析失败
+                return ParseState::ERROR;
+        }
+        _recv_status = RECV_HTTP_BODY; // 准备进入处理请求体状态
+        return ParseState::SUCCESS;
+    }
 
     // 接收请求体
 
