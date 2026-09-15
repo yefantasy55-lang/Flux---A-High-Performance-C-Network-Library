@@ -154,7 +154,7 @@ public:
     {
         // eg:a,,b,c, sep=','
         size_t offset = 0; // 分割的起始位置(偏移量)
-        while (src.size() < offset)
+        while (offset < src.size())
         {
             size_t pos = src.find(sep, offset);
             if (pos == std::string::npos) // 找不到的情况，把剩余部分打包成一个子串返回
@@ -594,7 +594,53 @@ typedef enum
 // Http的解析处理
 class HttpContext
 {
-    // 解析请求行
+    // 解析请求行(GET /index.html?user=root&passwd=123 HTTP/1.1)
+    bool ParseHttpLine(const std::string &line)
+    {
+        std::smatch matches;
+        std::regex e("(GET|HEAD|POST|PUT|DELETE) ([^?]*)(?:\\?(.*))? (HTTP/1\\.[01])(?:\r\n|\n)?",
+                     std::regex::icase);
+        bool ret = std::regex_match(line, matches, e);
+        if (ret == false)
+        {
+            _resp_status = 400;
+            _recv_status = RECV_HTTP_ERROR;
+            LOG(LOGLEVEL::ERR, "Parse HttpLine Failed!!!");
+            return false;
+        }
+        // 0 : GET /index.html?user=root&passwd=123 HTTP/1.1
+        // 1 : GET
+        // 2 : /index.html
+        // 3 : user=root&passwd=123
+        // 4 : HTTP/1.1
+        _request._method = matches[1]; // 请求方法
+        std::transform(_request._method.begin(), _request._method.end(),
+                       _request._method.begin(), ::toupper); // 转换为大写
+        _request._path = Util::UrlDecode(matches[2], false); // 请求资源路径
+        std::vector<std::string> query_string_arry;          // 查询字符串的键值对
+        std::string query_string = matches[3];
+        if (!query_string.empty()) // 非空才进行分割
+        {
+            Util::Split(query_string, "&", &query_string_arry); // 分割查询字符串
+            for (auto &str : query_string_arry)
+            {
+                auto pos = str.find("=");
+                if (pos == std::string::npos)
+                {
+                    _request.Reset(); // 重置所有信息
+                    _resp_status = 400;
+                    _recv_status = RECV_HTTP_ERROR;
+                    LOG(LOGLEVEL::ERR, "Parse HttpLine Failed!!!");
+                    return false;
+                }
+                std::string key = Util::UrlDecode(str.substr(0, pos), true);
+                std::string val = Util::UrlDecode(str.substr(pos + 1), true);
+                _request.SetParam(key, val); // 构建查询字符串
+            }
+        }
+        _request._version = matches[4]; // 版本号
+        return true;
+    }
 
     // 接收请求行
 
