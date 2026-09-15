@@ -178,7 +178,7 @@ public:
         const char *pos = FindCRLF();
         if (pos == nullptr)
             return std::string();
-        return ReadAsString(pos - ReaderPosition() + 1);
+        return ReadAsString(pos - ReaderPosition() + 1); // 带出换行符
     }
 
     std::string GetLineAndPop()

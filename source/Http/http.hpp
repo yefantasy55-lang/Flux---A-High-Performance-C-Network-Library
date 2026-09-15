@@ -589,7 +589,14 @@ typedef enum
     RECV_HTTP_OVER  // 请求完成
 } HttpRecvStatus;
 
-#define MAX_LINE 8192 // 最大连接数量
+enum class ParseState // 解析请求行的状态
+{
+    NEED_MORE = 0, // 数据不够
+    SUCCESS,       // 成功
+    ERROR          // 错误
+};
+
+#define MAX_LINE 8192 // 一行最大的数据量
 
 // Http的解析处理
 class HttpContext
@@ -643,6 +650,37 @@ class HttpContext
     }
 
     // 接收请求行
+    ParseState RecvHttpLine(Buffer *buf)
+    {
+        if (_recv_status != RECV_HTTP_LINE)
+        {
+
+            return ParseState::ERROR;
+        }
+        std::string line = buf->GetLineAndPop(); // 获取一行数据,不如一行数据返回空串
+        if (line.size() == 0)
+        {
+            if (buf->ReadAbleSize() > MAX_LINE) // 没有换行符导致一直读
+            {
+                _resp_status = 414;
+                _recv_status = RECV_HTTP_ERROR;
+                return ParseState::ERROR;
+            }
+            return ParseState::NEED_MORE; // 数据不够，继续外部调用读取
+        }
+        // 到这里一定读到了一行数据
+        if (line.size() > MAX_LINE)
+        {
+            _resp_status = 414;
+            _recv_status = RECV_HTTP_ERROR;
+            LOG(LOGLEVEL::WARNING, "Current HttpLine Too Long!!!");
+            return ParseState::ERROR;
+        }
+        if (!ParseHttpLine(line)) // 解析失败
+            return ParseState::ERROR;
+        _recv_status = RECV_HTTP_HEAD; // 准备进入请求头解析状态
+        return ParseState::SUCCESS;
+    }
 
     // 接收请求头
 
