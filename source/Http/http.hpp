@@ -578,3 +578,44 @@ public:
     std::string _redirect_url;                             // 重定向的url
     std::unordered_map<std::string, std::string> _headers; // 响应头
 };
+
+// Http请求数据所处的处理状态
+typedef enum
+{
+    RECV_HTTP_ERROR = 0,
+    RECV_HTTP_LINE, // 请求行
+    RECV_HTTP_HEAD, // 请求头
+    RECV_HTTP_BODY, // 请求体
+    RECV_HTTP_OVER  // 请求完成
+} HttpRecvStatus;
+
+#define MAX_LINE 8192 // 最大连接数量
+
+// Http的解析处理
+class HttpContext
+{
+    // 解析请求行
+
+    // 接收请求行
+
+    // 接收请求头
+
+    // 解析请求头
+
+    // 接收请求体
+
+public:
+    HttpContext()
+        : _resp_status(200), _recv_status(RECV_HTTP_LINE)
+    {
+    }
+
+    void Reset()
+    {
+    }
+
+private:
+    int _resp_status;            // 响应状态码
+    HttpRecvStatus _recv_status; // 当前接收及解析所处的状态
+    HttpRequest _request;
+};
