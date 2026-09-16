@@ -841,4 +841,73 @@ private:
 
 class HttpServer
 {
+    using Handler = std::function<void(const HttpRequest &, HttpResponse *)>;
+    using Handlers = std::vector<std::pair<std::regex, Handler>>; // 采用Restful形式的接口
+
+    // 错误处理
+    void ErrorHandler(const HttpRequest &req, HttpResponse *resp)
+    {
+        std::string body;
+        std::string path = _basedir + "404.html";
+        bool ret = Util::ReadFile(path, &body);
+        if (ret == false)
+        {
+            return;
+        }
+        resp->SetContent(body, "text/html");
+    }
+
+    // 制作Http响应
+    void MakeResponse(const PtrConnection &conn, const HttpRequest &req, HttpResponse *resp)
+    {
+        // 1.制作请求行(HTTP/1.x 200 OK\r\n)
+        std::stringstream resp_str;
+        resp_str << req._version << " " << std::to_string(resp->_status) << " "
+                 << Util::StatuDesc(resp->_status) << "\r\n";
+
+        // 2.完善请求头(防止传过来的响应没设置)
+        if (req.IsShortConnection()) // 短连接
+        {
+            resp->SetHeader("Connection", "close");
+        }
+        else // 长连接
+        {
+            resp->SetHeader("Connection", "keep-alive");
+        }
+        if ((!resp->_body.empty()) && (!resp->HasHeader("Content-Length"))) // 正文长度
+        {
+            resp->SetHeader("Content-Length", std::to_string(resp->_body.size()));
+        }
+        if ((!resp->_body.empty()) && (!resp->HasHeader("Content-Type"))) // 正文类型
+        {
+            resp->SetHeader("Content-Type", "application/octet-stream"); // 默认二进制流
+        }
+        if (resp->_redirect_flag == true) // 设置了重定向
+        {
+            resp->SetHeader("Location", resp->_redirect_url);
+        }
+
+        // 3.制作请求头
+        for (auto &head : resp->_headers)
+        {
+            resp_str << head.first << ": " << head.second << "\r\n"; // 单行请求头
+        }
+        resp_str << "\r\n"; // 空行
+
+        // 4.请求体得外部自己提前设置
+        resp_str << resp->_body;
+
+        // 5.发送响应
+        std::string data = resp_str.str();
+        conn->Send(data.c_str(), data.size());
+    }
+
+public:
+private:
+    Handlers _get_route;    // 处理GET请求
+    Handlers _post_route;   // 处理POST请求
+    Handlers _put_route;    // 处理PUT请求
+    Handlers _delete_route; // 处理DELETE请求
+    std::string _basedir;   // 静态资源根目录
+    TcpServer _server;      //  TCP服务器
 };
