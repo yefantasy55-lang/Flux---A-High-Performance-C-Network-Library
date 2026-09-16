@@ -586,7 +586,7 @@ typedef enum
     RECV_HTTP_LINE, // 请求行
     RECV_HTTP_HEAD, // 请求头
     RECV_HTTP_BODY, // 请求体
-    RECV_HTTP_OVER  // 请求完成
+    RECV_HTTP_OVER  // 请求接收完成
 } HttpRecvStatus;
 
 enum class ParseState // 解析请求行的状态
@@ -747,6 +747,43 @@ class HttpContext
     }
 
     // 接收请求体
+    ParseState RecvHttpBody(Buffer &buf)
+    {
+        if (_recv_status != RECV_HTTP_BODY)
+        {
+            return ParseState::ERROR;
+        }
+
+        size_t content_len = _request.ContentLength();
+        if (_request._body.size() > content_len)
+        {
+            return ParseState::ERROR;
+        }
+        if (content_len == 0)
+        {
+            _recv_status = RECV_HTTP_OVER;
+            return ParseState::SUCCESS;
+        }
+
+        size_t need_len = content_len - _request._body.size(); // 实际还需要读取的长度
+        if (need_len == 0)
+        {
+            _recv_status = RECV_HTTP_OVER;
+            return ParseState::SUCCESS;
+        }
+
+        size_t readable = buf.ReadAbleSize();           // 真实可读的数据大小
+        size_t take_len = std::min(need_len, readable); // 实际取出的长度
+        _request._body.append(buf.ReaderPosition(), take_len);
+        buf.MoveReadOffset(take_len);
+        if (take_len == need_len)
+        {
+            _recv_status = RECV_HTTP_OVER;
+            return ParseState::SUCCESS;
+        }
+
+        return ParseState::NEED_MORE;
+    }
 
 public:
     HttpContext()
