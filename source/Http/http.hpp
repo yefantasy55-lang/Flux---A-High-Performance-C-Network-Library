@@ -650,16 +650,16 @@ class HttpContext
     }
 
     // 接收请求行
-    ParseState RecvHttpLine(Buffer *buf)
+    ParseState RecvHttpLine(Buffer &buf)
     {
         if (_recv_status != RECV_HTTP_LINE)
         {
             return ParseState::ERROR;
         }
-        std::string line = buf->GetLineAndPop(); // 获取一行数据,不够一行数据返回空串
+        std::string line = buf.GetLineAndPop(); // 获取一行数据,不够一行数据返回空串
         if (line.size() == 0)
         {
-            if (buf->ReadAbleSize() > MAX_LINE) // 没有换行符导致一直读
+            if (buf.ReadAbleSize() > MAX_LINE) // 没有换行符导致一直读
             {
                 _resp_status = 414;
                 _recv_status = RECV_HTTP_ERROR;
@@ -705,7 +705,7 @@ class HttpContext
     }
 
     // 接收请求头
-    ParseState RecvHttpHead(Buffer *buf)
+    ParseState RecvHttpHead(Buffer &buf)
     {
         if (_recv_status != RECV_HTTP_HEAD)
         {
@@ -715,10 +715,10 @@ class HttpContext
         // 循环读取，直到读到空行
         while (true)
         {
-            std::string line = buf->GetLineAndPop(); // 获取一行数据,不够一行数据返回空串
+            std::string line = buf.GetLineAndPop(); // 获取一行数据,不够一行数据返回空串
             if (line.size() == 0)
             {
-                if (buf->ReadAbleSize() > MAX_LINE) // 没有换行符导致一直读
+                if (buf.ReadAbleSize() > MAX_LINE) // 没有换行符导致一直读
                 {
                     _resp_status = 414;
                     _recv_status = RECV_HTTP_ERROR;
@@ -793,10 +793,52 @@ public:
 
     void Reset()
     {
+        _resp_status = 200;
+        _recv_status = RECV_HTTP_LINE;
+        _request.Reset();
+    }
+
+    // 响应状态码
+    int RespStatus()
+    {
+        return _resp_status;
+    }
+
+    // 请求接收状态
+    HttpRecvStatus RecvStatus()
+    {
+        return _recv_status;
+    }
+
+    // Http请求
+    HttpRequest &Request()
+    {
+        return _request;
+    }
+
+    // 接收Http请求
+    void RecvHttpRequest(Buffer &buf)
+    {
+        // 一次性处理完Http请求，所以不break
+        switch (_recv_status)
+        {
+        case RECV_HTTP_LINE:
+            RecvHttpLine(buf);
+        case RECV_HTTP_HEAD:
+            RecvHttpHead(buf);
+        case RECV_HTTP_BODY:
+            RecvHttpBody(buf);
+        case RECV_HTTP_OVER:
+            break;
+        }
     }
 
 private:
     int _resp_status;            // 响应状态码
     HttpRecvStatus _recv_status; // 当前接收及解析所处的状态
-    HttpRequest _request;
+    HttpRequest _request;        // Http请求
+};
+
+class HttpServer
+{
 };
