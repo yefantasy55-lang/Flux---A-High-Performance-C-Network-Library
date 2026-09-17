@@ -902,6 +902,55 @@ class HttpServer
         conn->Send(data.c_str(), data.size());
     }
 
+    // 当前静态资源请求是否合法(外部调用)
+    bool IsFileHandler(const HttpRequest &req)
+    {
+        if (_basedir.empty())
+        {
+            return false;
+        }
+        if (req._method != "GET" && req._method != "HEAD") // 请求方法是否合法
+        {
+            return false;
+        }
+        if (!Util::ValidPath(req._path)) // 请求路径是否合法
+        {
+            return false;
+        }
+        std::string req_path = _basedir + req._path; // 完整路径(避免修改原变量)
+        if (req_path.back() == '/')                  // 请求根目录返回首页
+        {
+            req_path += "index.html";
+        }
+        if (!Util::IsRegular(req_path)) // 非普通文件
+        {
+            return false;
+        }
+        return true;
+    }
+
+    // 静态资源的请求处理
+    void FileHandler(const HttpRequest &req, HttpResponse *resp)
+    {
+        std::string req_path = _basedir + req._path;
+        if (req_path.back() == '/') // 请求根目录返回首页
+        {
+            req_path += "index.html";
+        }
+        bool ret = Util::ReadFile(req_path, &resp->_body);
+        if (ret == false)
+        {
+            return;
+        }
+        std::string mime = Util::ExtMime(req_path);
+        resp->SetHeader("Content-Type", mime);
+    }
+
+    // 事件派发器
+    void Dispatcher(HttpRequest &req, HttpResponse *rsp, Handlers &handlers)
+    {
+    }
+
 public:
 private:
     Handlers _get_route;    // 处理GET请求
