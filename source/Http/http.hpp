@@ -145,6 +145,8 @@ std::unordered_map<std::string, std::string> _mime_msg = {
     {".3g2", "video/3gpp2"},
     {".7z", "application/x-7z-compressed"}};
 
+const std::string default_basedir = "./wwwroot"; // 默认静态资源的地址
+
 // 封装配置操作
 class Util
 {
@@ -947,11 +949,145 @@ class HttpServer
     }
 
     // 事件派发器
-    void Dispatcher(HttpRequest &req, HttpResponse *rsp, Handlers &handlers)
+    void Dispatcher(HttpRequest &req, HttpResponse *resp, Handlers &handlers)
     {
+        for (auto &handler : handlers)
+        {
+            const std::regex &re = handler.first;                     // 正则方法
+            const Handler &functor = handler.second;                  // 处理函数
+            bool ret = std::regex_match(req._path, req._matches, re); // 根据注册的路由匹配
+            if (ret == false)
+            {
+                continue;
+            }
+            functor(req, resp); // 到这里一定有调用的方法
+            return;
+        }
+        resp->_status = 404; // 找不到该资源请求方法
+    }
+
+    // 根据请求方法的不同，分发不同的Restful接口
+    void Route(HttpRequest &req, HttpResponse *resp)
+    {
+        // 静态资源请求
+        if (IsFileHandler(req))
+        {
+            FileHandler(req, resp);
+        }
+
+        // 功能性请求
+        std::string method = req._method;
+        if (method == "GET" || method == "HEAD")
+        {
+            Dispatcher(req, resp, _get_route);
+        }
+        if (method == "POST")
+        {
+            Dispatcher(req, resp, _get_route);
+        }
+        if (method == "PUT")
+        {
+            Dispatcher(req, resp, _get_route);
+        }
+        if (method == "DELETE")
+        {
+            Dispatcher(req, resp, _get_route);
+        }
+
+        resp->_status = 405; //  方法不允许
+    }
+
+    // 设置上下文
+    void OnConnected(const PtrConnection &conn)
+    {
+        conn->SetContext(HttpContext());
+        LOG(LOGLEVEL::DEBUG, "NEW CONNECTION %p", conn.get());
+    }
+
+    // 缓冲区数据解析+处理
+    void OnMessage(const PtrConnection &conn, Buffer *buffer)
+    {
+        while (buffer->ReadAbleSize()) // 有数据就一直循环处理
+        {
+            // 获取上下文
+            HttpContext *context = conn->GetContext()->get<HttpContext>();
+            context->RecvHttpRequest(*buffer);
+            HttpRequest &req = context->Request();
+            HttpResponse resp = HttpResponse(context->RespStatus());
+            if (resp._status >= 400) // 异常情况
+            {
+                ErrorHandler(req, &resp);
+                MakeResponse(conn, req, &resp); // 制作响应发送数据
+                context->Reset();
+                buffer->MoveReadOffset(buffer->ReadAbleSize());
+                conn->Shutdown();
+                return;
+            }
+            if (context->RecvStatus() != RECV_HTTP_OVER)
+            {
+                // 当前请求还没有接收完整,则退出，等新数据到来再重新继续处理
+                return;
+            }
+            Route(req, &resp); // 请求路由 + 业务处理
+            MakeResponse(conn, req, &resp);
+            context->Reset(); // 重置上下文
+            if (resp.IsShortConnection())
+            {
+                conn->Shutdown(); // 短连接就直接关闭
+            }
+        }
     }
 
 public:
+    HttpServer(int port, int timeout = DEFALT_TIMEOUT)
+        : _server(port)
+    {
+        _server.EnableInactiveRelease(timeout);
+        _server.SetConnectedCallBack(std::bind(&OnConnected, this, std::placeholders::_1));
+        _server.SetMessageCallBack(std::bind(&OnMessage, this, std::placeholders::_1, std::placeholders::_2));
+    }
+
+    // 设置静态资源根目录
+    void SetBaseDir(const std::string &path = default_basedir)
+    {
+        if (!Util::IsDirectory(path))
+        {
+            LOG(LOGLEVEL::ERR, "BaseDir Error!!!");
+            exit(-1);
+        };
+        _basedir = path;
+    }
+
+    void Get(const std::string &pattern, const Handler &handler)
+    {
+        _get_route.push_back(std::make_pair(std::regex(pattern), handler));
+    }
+
+    void Post(const std::string &pattern, const Handler &handler)
+    {
+        _post_route.push_back(std::make_pair(std::regex(pattern), handler));
+    }
+
+    void Put(const std::string &pattern, const Handler &handler)
+    {
+        _put_route.push_back(std::make_pair(std::regex(pattern), handler));
+    }
+
+    void Delete(const std::string &pattern, const Handler &handler)
+    {
+        _delete_route.push_back(std::make_pair(std::regex(pattern), handler));
+    }
+
+    void SetThreadCount(int count)
+    {
+        _server.SetThreadCount(count);
+    }
+
+    void Listen()
+    {
+        _server.Start();
+    }
+
 private:
     Handlers _get_route;    // 处理GET请求
     Handlers _post_route;   // 处理POST请求
