@@ -38,7 +38,7 @@ public:
     Acceptor(EventLoop *loop, int port)
         : _listensockfd(CreateServer(port)), _loop(loop), _channel(_loop, _listensockfd.Fd())
     {
-        _channel.SetReadCallback(std::bind(&HandleRead, this));
+        _channel.SetReadCallback(std::bind(&Acceptor::HandleRead, this));
     }
 
     Acceptor(const Acceptor &) = delete;

@@ -83,8 +83,13 @@ public:
         }
         else // 扩容
         {
-            LOG(LOGLEVEL::DEBUG, "RESIZE %ld", _writer_idx + len);
-            _buffer.resize(_writer_idx + len);
+            // 翻倍扩容，避免频繁的 memcpy
+            uint64_t new_size = std::max(_buffer.size() * 2, _writer_idx + len);
+            // 限制单个缓冲区最大 1MB，防止恶意请求撑爆内存
+            if (new_size > 1024 * 1024)
+                new_size = 1024 * 1024;
+            LOG(LOGLEVEL::DEBUG, "RESIZE %ld", new_size);
+            _buffer.resize(new_size);
         }
     }
 
@@ -193,6 +198,12 @@ public:
     {
         _reader_idx = 0;
         _writer_idx = 0;
+        // 如果缓冲区过大且当前没有数据，缩容回初始大小
+        if (_buffer.capacity() > BUFFER_DEFAULT_SIZE && ReadAbleSize() == 0)
+        {
+            std::vector<char> tmp(BUFFER_DEFAULT_SIZE);
+            _buffer.swap(tmp); // 真正释放内存
+        }
     }
 
     ~Buffer() {}

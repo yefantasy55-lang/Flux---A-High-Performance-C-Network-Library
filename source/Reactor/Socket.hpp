@@ -114,17 +114,19 @@ public:
     ssize_t Recv(void *buf, size_t len, int flag = 0)
     {
         ssize_t n = recv(_sockfd, buf, len, flag);
-        if (n <= 0)
+        if (n == 0)
+        {
+            // 对端正常关闭连接
+            return -2; // 用 -2 特殊标记正常关闭
+        }
+        if (n < 0)
         {
             if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR)
             {
-                return 0;
+                return 0; // 返回 0 表示非阻塞读完，不是错误
             }
-            else
-            {
-                LOG(LOGLEVEL::ERR, "Recv Socket Failed!!!");
-                return -1;
-            }
+            LOG(LOGLEVEL::ERR, "Recv Socket Failed!!! errno: %d", errno);
+            return -1; // 返回 -1 表示真正的错误
         }
         return n;
     }

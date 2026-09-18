@@ -1,7 +1,8 @@
 #pragma once
 #include <functional>
 #include <sys/epoll.h>
-#include "EventLoop.hpp"
+
+class EventLoop; // 前置声明,防止与EventLoop互包
 
 class Channel
 {
@@ -103,16 +104,10 @@ public:
         Update();
     }
 
-    // 移除监控
-    void Remove()
-    {
-        _loop->RemoveEvent(this);
-    }
+    // 移除监控(实现放在EventLoop.hpp底部,防止互包)
+    void Remove();
 
-    void Update()
-    {
-        _loop->UpdateEvent(this);
-    }
+    void Update();
 
     // 根据触发的事假去调用对应的回调
     void HandleEvent()

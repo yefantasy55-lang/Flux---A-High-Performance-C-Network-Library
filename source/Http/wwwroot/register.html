@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户注册</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+            background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+            padding: 20px;
+        }
+
+        .card {
+            width: 100%;
+            max-width: 420px;
+            background: #fff;
+            border-radius: 16px;
+            padding: 40px 32px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, .15);
+        }
+
+        h1 {
+            font-size: 24px;
+            text-align: center;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .sub {
+            text-align: center;
+            color: #999;
+            font-size: 13px;
+            margin-bottom: 28px;
+        }
+
+        .field {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 6px;
+        }
+
+        input[type=text],
+        input[type=email],
+        input[type=password] {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color .2s, box-shadow .2s;
+        }
+
+        input:focus {
+            border-color: #764ba2;
+            box-shadow: 0 0 0 3px rgba(118, 75, 162, .15);
+        }
+
+        button {
+            width: 100%;
+            padding: 13px;
+            font-size: 15px;
+            font-weight: 600;
+            color: #fff;
+            background: linear-gradient(135deg, #764ba2, #667eea);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: opacity .2s;
+            margin-top: 6px;
+        }
+
+        button:hover {
+            opacity: .9;
+        }
+
+        button:disabled {
+            opacity: .6;
+            cursor: not-allowed;
+        }
+
+        .msg {
+            margin-top: 14px;
+            font-size: 13px;
+            text-align: center;
+            min-height: 18px;
+        }
+
+        .msg.err {
+            color: #e74c3c;
+        }
+
+        .msg.ok {
+            color: #27ae60;
+        }
+
+        .foot {
+            text-align: center;
+            font-size: 13px;
+            color: #888;
+            margin-top: 22px;
+        }
+
+        .foot a {
+            color: #764ba2;
+            text-decoration: none;
+            font-weight: 600;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="card">
+        <h1>创建账号</h1>
+        <p class="sub">填写以下信息完成注册</p>
+
+        <form id="registerForm" action="#" method="post" novalidate>
+            <div class="field">
+                <label for="username">用户名</label>
+                <input type="text" id="username" name="username" placeholder="请输入用户名" autocomplete="username" required>
+            </div>
+            <div class="field">
+                <label for="email">邮箱</label>
+                <input type="email" id="email" name="email" placeholder="请输入邮箱" autocomplete="email" required>
+            </div>
+            <div class="field">
+                <label for="password">密码</label>
+                <input type="password" id="password" name="password" placeholder="至少6位密码" autocomplete="new-password"
+                    required>
+            </div>
+            <div class="field">
+                <label for="confirmPassword">确认密码</label>
+                <input type="password" id="confirmPassword" name="confirmPassword" placeholder="再次输入密码"
+                    autocomplete="new-password" required>
+            </div>
+            <button type="submit" id="submitBtn">注 册</button>
+            <p class="msg" id="msg"></p>
+        </form>
+
+        <p class="foot">已有账号？<a href="login.html">去登录</a></p>
+    </div>
+
+    <script>
+        var form = document.getElementById('registerForm');
+        var msg = document.getElementById('msg');
+        var btn = document.getElementById('submitBtn');
+
+        function show(text, type) {
+            msg.textContent = text;
+            msg.className = 'msg ' + (type || '');
+        }
+
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            var data = Object.fromEntries(new FormData(form).entries());
+            var username = (data.username || '').trim();
+            var email = (data.email || '').trim();
+            var password = data.password || '';
+            var confirmPassword = data.confirmPassword || '';
+
+            // 基础校验
+            if (!username) return show('请输入用户名', 'err');
+            if (!email) return show('请输入邮箱', 'err');
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return show('邮箱格式不正确', 'err');
+            if (password.length < 6) return show('密码至少6位', 'err');
+            if (password !== confirmPassword) return show('两次输入的密码不一致', 'err');
+
+            btn.disabled = true;
+            btn.textContent = '注册中...';
+
+            // 模拟后端注册
+            setTimeout(function () {
+                var users = JSON.parse(localStorage.getItem('users') || '[]');
+
+                // 检查用户名或邮箱是否已存在
+                var exists = users.some(function (u) {
+                    return u.username === username || u.email === email;
+                });
+                if (exists) {
+                    btn.disabled = false;
+                    btn.textContent = '注 册';
+                    return show('用户名或邮箱已被注册', 'err');
+                }
+
+                // 保存新用户（真实项目请勿明文存储密码）
+                users.push({ username: username, email: email, password: password });
+                localStorage.setItem('users', JSON.stringify(users));
+
+                show('注册成功，正在跳转登录...', 'ok');
+                setTimeout(function () { location.href = 'login.html'; }, 1000);
+            }, 600);
+        });
+    </script>
+</body>
+
+</html>

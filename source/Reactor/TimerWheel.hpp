@@ -10,6 +10,8 @@
 #include "Log.hpp"
 #include "Channel.hpp"
 
+class EventLoop; // 前置声明,防止与EventLoop互包
+
 using TaskFun = std::function<void()>;
 using ReleaseFun = std::function<void()>;
 
@@ -162,7 +164,7 @@ public:
           _loop(loop), _timer_channel(std::make_unique<Channel>(_loop, _timerfd)),
           _wheel(_capacity)
     {
-        _timer_channel->SetReadCallback(std::bind(&OnTime, this));
+        _timer_channel->SetReadCallback(std::bind(&TimerWheel::OnTime, this));
         _timer_channel->EnableRead(); // 启动读事件监控
     }
 

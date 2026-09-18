@@ -56,7 +56,7 @@ class TcpServer
     void RemoveConnection(const PtrConnection &conn)
     {
         // _conns的管理操作交由baseloop执行
-        _baseloop.RunInLoop(std::bind(&RemoveConnectionInLoop, this, conn));
+        _baseloop.RunInLoop(std::bind(&TcpServer::RemoveConnectionInLoop, this, conn));
     }
 
 public:
@@ -64,7 +64,7 @@ public:
         : _next_id(0), _port(port), _enable_interactive_release(false),
           _acceptor(&_baseloop, _port), _pool(&_baseloop)
     {
-        _acceptor.SetAcceptCallback(std::bind(&NewConnection, this, std::placeholders::_1));
+        _acceptor.SetAcceptCallback(std::bind(&TcpServer::NewConnection, this, std::placeholders::_1));
         _acceptor.Listen();
     }
 
@@ -104,7 +104,7 @@ public:
     // 添加定时任务
     void AddTimerTask(const Functor &task, uint32_t timeout)
     {
-        _baseloop.RunInLoop(std::bind(&AddTimerTaskInLoop, this, task, timeout));
+        _baseloop.RunInLoop(std::bind(&TcpServer::AddTimerTaskInLoop, this, task, timeout));
     }
 
     // 启动服务器

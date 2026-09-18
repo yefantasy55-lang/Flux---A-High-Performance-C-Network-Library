@@ -25,7 +25,7 @@ class LoopThread
 
 public:
     LoopThread()
-        : _loop(nullptr), _thread(std::thread(&ThreadEntry, this))
+        : _loop(nullptr), _thread(std::thread(&LoopThread::ThreadEntry, this))
     {
     }
 

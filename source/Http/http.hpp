@@ -145,7 +145,7 @@ std::unordered_map<std::string, std::string> _mime_msg = {
     {".3g2", "video/3gpp2"},
     {".7z", "application/x-7z-compressed"}};
 
-const std::string default_basedir = "./wwwroot"; // 默认静态资源的地址
+const std::string default_basedir = "/home/yzq/Flux/source/Http/wwwroot"; // 默认静态资源的地址
 
 // 封装配置操作
 class Util
@@ -850,7 +850,7 @@ class HttpServer
     void ErrorHandler(const HttpRequest &req, HttpResponse *resp)
     {
         std::string body;
-        std::string path = _basedir + "404.html";
+        std::string path = _basedir + "/404.html";
         bool ret = Util::ReadFile(path, &body);
         if (ret == false)
         {
@@ -973,6 +973,7 @@ class HttpServer
         if (IsFileHandler(req))
         {
             FileHandler(req, resp);
+            return;
         }
 
         // 功能性请求
@@ -981,20 +982,22 @@ class HttpServer
         {
             Dispatcher(req, resp, _get_route);
         }
-        if (method == "POST")
+        else if (method == "POST")
         {
-            Dispatcher(req, resp, _get_route);
+            Dispatcher(req, resp, _post_route);
         }
-        if (method == "PUT")
+        else if (method == "PUT")
         {
-            Dispatcher(req, resp, _get_route);
+            Dispatcher(req, resp, _put_route);
         }
-        if (method == "DELETE")
+        else if (method == "DELETE")
         {
-            Dispatcher(req, resp, _get_route);
+            Dispatcher(req, resp, _delete_route);
         }
-
-        resp->_status = 405; //  方法不允许
+        else
+        {
+            resp->_status = 405; //  方法不允许
+        }
     }
 
     // 设置上下文
@@ -1029,6 +1032,10 @@ class HttpServer
                 return;
             }
             Route(req, &resp); // 请求路由 + 业务处理
+            if (resp._status >= 400) // 路由产生的404/405等错误同样走错误处理
+            {
+                ErrorHandler(req, &resp);
+            }
             MakeResponse(conn, req, &resp);
             context->Reset(); // 重置上下文
             if (resp.IsShortConnection())
@@ -1043,8 +1050,8 @@ public:
         : _server(port)
     {
         _server.EnableInactiveRelease(timeout);
-        _server.SetConnectedCallBack(std::bind(&OnConnected, this, std::placeholders::_1));
-        _server.SetMessageCallBack(std::bind(&OnMessage, this, std::placeholders::_1, std::placeholders::_2));
+        _server.SetConnectedCallBack(std::bind(&HttpServer::OnConnected, this, std::placeholders::_1));
+        _server.SetMessageCallBack(std::bind(&HttpServer::OnMessage, this, std::placeholders::_1, std::placeholders::_2));
     }
 
     // 设置静态资源根目录
@@ -1058,22 +1065,22 @@ public:
         _basedir = path;
     }
 
-    void Get(const std::string &pattern, const Handler &handler)
+    void RegisterGet(const std::string &pattern, const Handler &handler)
     {
         _get_route.push_back(std::make_pair(std::regex(pattern), handler));
     }
 
-    void Post(const std::string &pattern, const Handler &handler)
+    void RegisterPost(const std::string &pattern, const Handler &handler)
     {
         _post_route.push_back(std::make_pair(std::regex(pattern), handler));
     }
 
-    void Put(const std::string &pattern, const Handler &handler)
+    void RegisterPut(const std::string &pattern, const Handler &handler)
     {
         _put_route.push_back(std::make_pair(std::regex(pattern), handler));
     }
 
-    void Delete(const std::string &pattern, const Handler &handler)
+    void RegisterDelete(const std::string &pattern, const Handler &handler)
     {
         _delete_route.push_back(std::make_pair(std::regex(pattern), handler));
     }

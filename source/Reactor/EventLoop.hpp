@@ -92,7 +92,7 @@ public:
         : _isrunning(false), _thread_id(std::this_thread::get_id()), _event_fd(CreateEventFd()),
           _event_channel(std::make_unique<Channel>(this, _event_fd)), _timer_wheel(this)
     {
-        _event_channel->SetReadCallback(std::bind(&ReadEventfd, this));
+        _event_channel->SetReadCallback(std::bind(&EventLoop::ReadEventfd, this));
         _event_channel->EnableRead();
     }
 
@@ -171,7 +171,7 @@ public:
 
     void TimerCancel(uint64_t id) { _timer_wheel.TimerCancel(id); }
 
-    bool HasTimer(uint64_t id) { _timer_wheel.HasTimer(id); }
+    bool HasTimer(uint64_t id) { return _timer_wheel.HasTimer(id); }
 
 private:
     std::atomic<bool> _isrunning;            // 是否运行,用atomic是为了防止编译器激进优化导致布尔值一直不改变
@@ -187,15 +187,26 @@ private:
 // 把timerwheel的部分类成员函数只做声明，放到EventLoop模块实现，防止互包
 inline void TimerWheel::TimerAdd(uint64_t id, uint32_t timeout, const TaskFun &task_cb)
 {
-    _loop->RunInLoop(std::bind(&TimerAddInLoop, this, id, timeout, task_cb));
+    _loop->RunInLoop(std::bind(&TimerWheel::TimerAddInLoop, this, id, timeout, task_cb));
 }
 
 inline void TimerWheel::TimerRefresh(uint64_t id)
 {
-    _loop->RunInLoop(std::bind(&TimerRefreshInLoop, this, id));
+    _loop->RunInLoop(std::bind(&TimerWheel::TimerRefreshInLoop, this, id));
 }
 
 inline void TimerWheel::TimerCancel(uint64_t id)
 {
-    _loop->RunInLoop(std::bind(&TimerCancelInLoop, this, id));
+    _loop->RunInLoop(std::bind(&TimerWheel::TimerCancelInLoop, this, id));
+}
+
+// 把channel的Remove/Update放到这里实现,防止与EventLoop互包
+inline void Channel::Remove()
+{
+    _loop->RemoveEvent(this);
+}
+
+inline void Channel::Update()
+{
+    _loop->UpdateEvent(this);
 }
